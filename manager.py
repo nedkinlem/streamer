@@ -4,6 +4,31 @@ from utils import *
 
 ensure_dirs()
 
+ACTIVE_STREAMS_FILE = os.path.join(os.getcwd(), "active_streams.txt")
+
+def save_active_stream(key):
+    keys = []
+    if os.path.exists(ACTIVE_STREAMS_FILE):
+        keys = [line.strip() for line in open(ACTIVE_STREAMS_FILE)]
+    if key not in keys:
+        with open(ACTIVE_STREAMS_FILE, "a") as f:
+            f.write(key + "\n")
+
+def remove_active_stream(key):
+    if not os.path.exists(ACTIVE_STREAMS_FILE):
+        return
+    keys = [line.strip() for line in open(ACTIVE_STREAMS_FILE)]
+    keys = [k for k in keys if k != key]
+    with open(ACTIVE_STREAMS_FILE, "w") as f:
+        for k in keys:
+            f.write(k + "\n")
+
+def get_active_streams():
+    if not os.path.exists(ACTIVE_STREAMS_FILE):
+        return []
+    return [line.strip() for line in open(ACTIVE_STREAMS_FILE)]
+
+
 def start_stream():
     key = input("Введіть код трансляції (назва папки): ").strip()
     if not key:
