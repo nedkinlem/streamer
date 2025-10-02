@@ -11,28 +11,31 @@ signal.signal(signal.SIGINT, handle_sigterm)
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--key", required=True, help="Код трансляції (назва папки)")
-    parser.add_argument("--url", default=DEFAULT_RTMP_URL, help="RTMP URL")
+    parser.add_argument("--key", required=True)
+    parser.add_argument("--url", default=DEFAULT_RTMP_URL)
     args = parser.parse_args()
 
     ensure_dirs()
-    key = args.key
-    url = args.url
+    key, url = args.key, args.url
     folder = stream_path(key)
     os.makedirs(folder, exist_ok=True)
 
-    while RUNNING:
-        files = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
-        if not files:
-            time.sleep(2)
-            continue
-        random.shuffle(files)
-        for f in files:
-            if not RUNNING: break
-            path = os.path.join(folder, f)
-            if not is_youtube_compatible(path):
-                path = reencode_to_youtube(path) or path
-            stream_video(path, url, key)
+    write_pid(key, os.getpid())
+    try:
+        while RUNNING:
+            files = list_video_files(folder)
+            if not files:
+                time.sleep(2)
+                continue
+            random.shuffle(files)
+            for f in files:
+                if not RUNNING: break
+                path = os.path.join(folder, f)
+                if not is_youtube_compatible(path):
+                    path = reencode_to_youtube(path) or path
+                stream_video(path, url, key)
+    finally:
+        clear_pid(key)
     return 0
 
 if __name__ == "__main__":
