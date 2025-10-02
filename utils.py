@@ -90,17 +90,27 @@ def reencode_to_youtube(src):
         return out
     return None
 
-def stream_video(f,url,key):
-    fps=get_fps(f); gop=fps*2
-    br=select_bitrate(f)
-    cmd=["ffmpeg","-re","-i",f,
-     "-c:v","libx264","-preset","veryfast","-b:v",br,
-     "-maxrate",br,"-bufsize",str(int(br[:-1])*2)+"k",
-     "-g",str(gop),"-keyint_min",str(gop),
-     "-tune","zerolatency","-x264opts",f"keyint={gop}:min-keyint={gop}:no-scenecut",
-     "-c:a","aac","-b:a","128k","-ar","44100",
-     "-f","flv",f"{url}/{key}"]
-     "-c:a","aac","-b:a","128k","-ar","44100","-f","flv",f"{url}/{key}"]
+def stream_video(f, url, key):
+    fps = get_fps(f); gop = fps * 2
+
+    if is_youtube_compatible(f):
+        # Якщо файл вже h264+aac → стрімимо напряму без перекодування
+        cmd = [
+            "ffmpeg","-re","-i",f,
+            "-c:v","copy","-c:a","copy",
+            "-f","flv",f"{url}/{key}"
+        ]
+    else:
+        # Інакше перекодовуємо
+        br = select_bitrate(f)
+        cmd = [
+            "ffmpeg","-re","-i",f,
+            "-c:v","libx264","-preset","veryfast","-b:v",br,
+            "-maxrate",br,"-bufsize",str(int(br[:-1])*2)+"k",
+            "-g",str(gop),"-keyint_min",str(gop),
+            "-tune","zerolatency","-x264opts",f"keyint={gop}:min-keyint={gop}:no-scenecut",
+            "-c:a","aac","-b:a","128k","-ar","44100",
+            "-f","flv",f"{url}/{key}"]
     return subprocess.call(cmd)
 
 def estimate_capacity():
