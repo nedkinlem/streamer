@@ -1,0 +1,11 @@
+[Unit]
+Description=YouTube Streamer (%i)
+After=network.target
+
+[Service]
+WorkingDirectory=%E/hetzner-yt-streamer-full
+ExecStart=%E/hetzner-yt-streamer-full/.venv/bin/python %E/hetzner-yt-streamer-full/streamer.py --key %i
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
