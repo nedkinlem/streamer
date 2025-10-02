@@ -73,8 +73,30 @@ def stream_video(f,url,key):
     return subprocess.call(cmd)
 
 def estimate_capacity():
-    try:
-        load1=float(open("/proc/loadavg").read().split()[0])
-    except: load1=0
+    """
+    Рахує оціночну кількість можливих стрімів у режимі copy (без перекодування),
+    виходячи з пропускної здатності мережі.
+    """
+    # вважаємо, що інтерфейс 1 Gbps
+    MAX_BPS = 1_000_000_000
+    STREAM_BPS = 6_000_000  # ~6 Мбіт/с на один стрім
+
+    def read_tx():
+        total=0
+        with open("/proc/net/dev") as f:
+            for line in f.readlines()[2:]:
+                parts=line.split()
+                if len(parts)>=10:
+                    total += int(parts[9])  # tx_bytes
+        return total
+
+    t0=read_tx(); time.sleep(1); t1=read_tx()
+    used = (t1-t0)*8  # в бітах/сек
+    free = max(0, MAX_BPS - used)
+    cap_net = free // STREAM_BPS
+
+    # CPU як страховка
     cores=os.cpu_count() or 4
-    return max(1,int(cores-load1))
+    cap_cpu = max(1, cores*5)  # копіювання ~0.2 core на стрім
+
+    return int(min(cap_net, cap_cpu))
