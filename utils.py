@@ -5,7 +5,7 @@ RUN_DIR     = os.path.join(os.getcwd(), "run")
 LOGS_DIR    = os.path.join(os.getcwd(), "logs")
 
 # Європейський ingest сервер YouTube
-DEFAULT_RTMP_URL = "rtmp://eu1.rtmp.youtube.com/live2"
+DEFAULT_RTMP_URL = "rtmp://a.rtmp.youtube.com/live2"
 
 def ensure_dirs():
     os.makedirs(STREAMS_DIR, exist_ok=True)
