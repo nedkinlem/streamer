@@ -93,10 +93,14 @@ def reencode_to_youtube(src):
 def stream_video(f,url,key):
     fps=get_fps(f); gop=fps*2
     br=select_bitrate(f)
-    cmd=["ffmpeg","-re","-i",f,"-c:v","libx264","-preset","veryfast","-b:v",br,
-         "-maxrate",br,"-bufsize",str(int(br[:-1])*2)+"k","-g",str(gop),"-keyint_min",str(gop),
-         "-tune","zerolatency",
-         "-c:a","aac","-b:a","128k","-ar","44100","-f","flv",f"{url}/{key}"]
+    cmd=["ffmpeg","-re","-i",f,
+     "-c:v","libx264","-preset","veryfast","-b:v",br,
+     "-maxrate",br,"-bufsize",str(int(br[:-1])*2)+"k",
+     "-g",str(gop),"-keyint_min",str(gop),
+     "-tune","zerolatency","-x264opts",f"keyint={gop}:min-keyint={gop}:no-scenecut",
+     "-c:a","aac","-b:a","128k","-ar","44100",
+     "-f","flv",f"{url}/{key}"]
+     "-c:a","aac","-b:a","128k","-ar","44100","-f","flv",f"{url}/{key}"]
     return subprocess.call(cmd)
 
 def estimate_capacity():
