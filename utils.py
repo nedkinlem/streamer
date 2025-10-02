@@ -1,4 +1,4 @@
-import os, sys, json, time, subprocess
+import os, json, time, subprocess
 
 STREAMS_DIR = os.path.join(os.getcwd(), "streams")
 RUN_DIR     = os.path.join(os.getcwd(), "run")
@@ -11,79 +11,70 @@ def ensure_dirs():
     os.makedirs(RUN_DIR, exist_ok=True)
     os.makedirs(LOGS_DIR, exist_ok=True)
 
-def stream_path(stream_key: str) -> str:
-    return os.path.join(STREAMS_DIR, stream_key)
+def stream_path(stream_key: str): return os.path.join(STREAMS_DIR, stream_key)
+def pidfile_path(stream_key: str): return os.path.join(RUN_DIR, f"{stream_key}.pid")
+def logfile_path(stream_key: str): return os.path.join(LOGS_DIR, f"{stream_key}.log")
 
-def pidfile_path(stream_key: str) -> str:
-    return os.path.join(RUN_DIR, f"{stream_key}.pid")
+def write_pid(key, pid): open(pidfile_path(key),"w").write(str(pid))
+def read_pid(key):
+    p = pidfile_path(key)
+    if not os.path.exists(p): return None
+    try:
+        pid = int(open(p).read().strip())
+        os.kill(pid,0)
+        return pid
+    except: return None
+def clear_pid(key):
+    try: os.remove(pidfile_path(key))
+    except: pass
 
-def logfile_path(stream_key: str) -> str:
-    return os.path.join(LOGS_DIR, f"{stream_key}.log")
+def list_video_files(folder):
+    exts = (".mp4",".mov",".mkv",".avi",".flv",".webm",".ts",".mpeg")
+    return sorted([f for f in os.listdir(folder) if f.lower().endswith(exts)])
 
 def run_json(cmd):
     proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode != 0:
-        return None
-    try:
-        return json.loads(proc.stdout)
-    except Exception:
-        return None
+    if proc.returncode!=0: return None
+    try: return json.loads(proc.stdout)
+    except: return None
 
-def get_fps(filepath: str) -> int:
+def get_fps(file):
+    d = run_json(["ffprobe","-v","error","-select_streams","v:0",
+                  "-show_entries","stream=r_frame_rate","-of","json",file])
     try:
-        data = run_json([
-            "ffprobe", "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "stream=r_frame_rate",
-            "-of", "json", filepath
-        ])
-        if not data or "streams" not in data or not data["streams"]:
-            return 30
-        rate = data["streams"][0]["r_frame_rate"]
-        if rate and "/" in rate:
-            num, den = rate.split("/")
-            fps = float(num) / float(den)
-            return int(round(fps))
-        return 30
-    except Exception:
-        return 30
+        r = d["streams"][0]["r_frame_rate"]
+        num,den = map(int,r.split("/"))
+        return int(round(num/den))
+    except: return 30
 
-def is_youtube_compatible(filepath: str) -> bool:
-    v = run_json(["ffprobe","-v","error","-select_streams","v:0","-show_entries","stream=codec_name","-of","json",filepath])
-    a = run_json(["ffprobe","-v","error","-select_streams","a:0","-show_entries","stream=codec_name","-of","json",filepath])
+def is_youtube_compatible(f):
+    v = run_json(["ffprobe","-v","error","-select_streams","v:0","-show_entries","stream=codec_name","-of","json",f])
+    a = run_json(["ffprobe","-v","error","-select_streams","a:0","-show_entries","stream=codec_name","-of","json",f])
     if not v or not a: return False
-    vcodec = v["streams"][0]["codec_name"] if v.get("streams") else ""
-    acodec = a["streams"][0]["codec_name"] if a.get("streams") else ""
-    return vcodec == "h264" and acodec == "aac" and filepath.lower().endswith(".mp4")
+    return v["streams"][0]["codec_name"]=="h264" and a["streams"][0]["codec_name"]=="aac" and f.endswith(".mp4")
 
-def reencode_to_youtube(src: str) -> str | None:
-    base, _ = os.path.splitext(src)
-    out = f"{base}_yt.mp4"
-    fps = get_fps(src)
-    gop = fps * 2
-    cmd = [
-        "ffmpeg","-y","-i",src,
-        "-c:v","libx264","-preset","veryfast","-b:v","4000k","-maxrate","4000k","-bufsize","8000k",
-        "-g",str(gop),"-keyint_min",str(gop),
-        "-c:a","aac","-b:a","128k","-ar","44100",
-        out
-    ]
-    code = subprocess.call(cmd)
-    if code == 0 and os.path.exists(out):
-        try: os.remove(src)
-        except Exception: pass
+def reencode_to_youtube(src):
+    base,_=os.path.splitext(src)
+    out=f"{base}_yt.mp4"
+    fps=get_fps(src); gop=fps*2
+    cmd=["ffmpeg","-y","-i",src,"-c:v","libx264","-preset","veryfast","-b:v","4000k",
+         "-maxrate","4000k","-bufsize","8000k","-g",str(gop),"-keyint_min",str(gop),
+         "-c:a","aac","-b:a","128k","-ar","44100",out]
+    if subprocess.call(cmd)==0 and os.path.exists(out):
+        os.remove(src)
         return out
     return None
 
-def stream_video(video_file, stream_url, stream_key):
-    fps = get_fps(video_file)
-    gop = fps * 2
-    cmd = [
-        "ffmpeg", "-re", "-i", video_file,
-        "-c:v", "libx264", "-preset", "veryfast",
-        "-b:v", "4000k", "-maxrate", "4000k", "-bufsize", "8000k",
-        "-g", str(gop), "-keyint_min", str(gop),
-        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-        "-f", "flv", f"{stream_url}/{stream_key}"
-    ]
+def stream_video(f,url,key):
+    fps=get_fps(f); gop=fps*2
+    cmd=["ffmpeg","-re","-i",f,"-c:v","libx264","-preset","veryfast","-b:v","4000k",
+         "-maxrate","4000k","-bufsize","8000k","-g",str(gop),"-keyint_min",str(gop),
+         "-c:a","aac","-b:a","128k","-ar","44100","-f","flv",f"{url}/{key}"]
     return subprocess.call(cmd)
+
+def estimate_capacity():
+    try:
+        load1=float(open("/proc/loadavg").read().split()[0])
+    except: load1=0
+    cores=os.cpu_count() or 4
+    return max(1,int(cores-load1))
