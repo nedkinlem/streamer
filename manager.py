@@ -85,8 +85,29 @@ def stop_stream():
             print("Помилка сигналу:", e)
         if not read_pid(key):
             print("Зупинено.")
+            remove_active_stream(key)
         else:
             print("Не вдалося зупинити миттєво. Спробуйте ще раз або використайте: kill", pid)
+
+def restart_all_streams():
+    keys = get_active_streams()
+    if not keys:
+        print("Активних стрімів немає.")
+        return
+    print("Перезапускаю стріми:", ", ".join(keys))
+    # зупиняємо всі
+    for k in keys:
+        pid = read_pid(k)
+        if pid:
+            try:
+                os.kill(pid, 15)
+                time.sleep(1)
+            except: pass
+        clear_pid(k)
+    time.sleep(2)
+    # запускаємо знову
+    for k in keys:
+        launch_worker(k)
 
 def list_streams():
     active = []
@@ -151,6 +172,7 @@ def launch_worker(key: str):
     pid = read_pid(key)
     if pid:
         print(f"Стрім {key} запущено (pid {pid}).")
+        save_active_stream(key)
     else:
         print("Не вдалось визначити запуск. Перевірте логи:", logf)
 
@@ -166,6 +188,7 @@ def main_menu():
         print("3) Перевірити скільки трансляцій запущено")
         print("4) Розрахувати ресурс")
         print("5) Вийти зі скрипта")
+        print("6) Перезапустити всі активні стріми")
         choice = input("> ").strip()
         if choice == "1":
             start_stream()
@@ -177,6 +200,8 @@ def main_menu():
             calc_resource()
         elif choice == "5":
             print("Bye.")
+        elif choice == "6":
+            restart_all_streams()
             break
 
 if __name__ == "__main__":
